@@ -1,40 +1,37 @@
 /* ==========================================================================
-   Mini Hiring Pipeline - MindBridge Black & Yellow Theme
+   Mini Hiring Pipeline - Tech Dark Mode (Deep Blue/Black & Vibrant Yellow)
    ========================================================================== */
 
 :root {
-    /* Brand Colors (Black & Yellow Palette) */
-    --brand-yellow: #f5b700;
-    --brand-yellow-hover: #ffc72c;
-    --brand-yellow-glow: rgba(245, 183, 0, 0.25);
-    --brand-yellow-subtle: rgba(245, 183, 0, 0.12);
-    --brand-dark: #090c10;
+    /* Vibrant Yellow Accent Palette */
+    --accent-yellow: #f5b700;
+    --accent-yellow-hover: #ffc72c;
+    --accent-yellow-glow: rgba(245, 183, 0, 0.25);
+    --accent-yellow-subtle: rgba(245, 183, 0, 0.10);
+    --dark-text-contrast: #0a0f1d;
     
-    /* Background Surface Hierarchy */
-    --bg-page: #0b0f17;
-    --bg-surface: #101622;
-    --bg-surface-elevated: #151d2c;
-    --bg-column: #121824;
-    --bg-card: #182130;
-    --bg-card-hover: #1e293c;
-    --bg-input: #0d121c;
+    /* Deep Dark Blue/Black Tech Background Hierarchy */
+    --bg-page: #0a0f1d;               /* Deep tech blue/black background */
+    --bg-surface: #0f1628;            /* Header and navigation bar */
+    --bg-surface-elevated: #151e34;   /* Popups, dropdowns, modal bars */
+    --bg-column: #131b2e;             /* Column panel containers */
+    --bg-card: #1c263d;               /* Dark gray/slate candidate card containers */
+    --bg-card-hover: #222f4b;         /* Hover state for candidate cards */
+    --bg-input: #0b1120;              /* Form and search inputs */
 
     /* Borders */
-    --border-subtle: rgba(255, 255, 255, 0.07);
-    --border-color: rgba(255, 255, 255, 0.12);
-    --border-card: rgba(255, 255, 255, 0.10);
-    --border-card-hover: rgba(245, 183, 0, 0.40);
+    --border-subtle: rgba(255, 255, 255, 0.06);
+    --border-color: rgba(255, 255, 255, 0.10);
+    --border-card: rgba(255, 255, 255, 0.12);
+    --border-card-hover: rgba(245, 183, 0, 0.50);
 
     /* Text Colors */
     --text-primary: #f8fafc;
     --text-secondary: #94a3b8;
     --text-muted: #64748b;
     --text-yellow: #f5b700;
-    --text-dark: #090c10;
 
-    /* Semantic States */
-    --color-primary: var(--brand-yellow);
-    --color-primary-hover: var(--brand-yellow-hover);
+    /* Semantic Status States */
     --color-danger: #f87171;
     --color-danger-hover: #ef4444;
     --color-danger-bg: rgba(239, 68, 68, 0.12);
@@ -49,7 +46,7 @@
     --radius-lg: 10px;
     --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.3);
     --shadow-card: 0 4px 12px rgba(0, 0, 0, 0.25);
-    --shadow-card-hover: 0 6px 18px rgba(0, 0, 0, 0.45), 0 0 12px rgba(245, 183, 0, 0.15);
+    --shadow-card-hover: 0 6px 20px rgba(0, 0, 0, 0.45), 0 0 12px rgba(245, 183, 0, 0.20);
 }
 
 * {
@@ -67,7 +64,7 @@ body {
 }
 
 /* ==========================================================================
-   Header & MindBridge Brand Identity
+   Header (Clean layout identical to earlier, no brand logo)
    ========================================================================== */
 
 .app-header {
@@ -79,54 +76,12 @@ body {
     justify-content: space-between;
     align-items: center;
     gap: 1.25rem;
-    box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-    position: relative;
-}
-
-.app-header::after {
-    content: "";
-    position: absolute;
-    bottom: -1px;
-    left: 0;
-    width: 140px;
-    height: 2px;
-    background: var(--brand-yellow);
-    box-shadow: 0 0 10px var(--brand-yellow);
-}
-
-.header-main {
-    display: flex;
-    flex-direction: column;
-}
-
-.brand-row {
-    display: flex;
-    align-items: center;
-    gap: 0.75rem;
-}
-
-.brand-logo {
-    display: flex;
-    align-items: center;
-    gap: 0.4rem;
-}
-
-.brand-name {
-    font-size: 1.15rem;
-    font-weight: 800;
-    letter-spacing: -0.02em;
-    color: #ffffff;
-}
-
-.brand-separator {
-    color: rgba(255, 255, 255, 0.2);
-    font-weight: 300;
-    font-size: 1.1rem;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.3);
 }
 
 .header-main h1 {
     margin: 0;
-    font-size: 1.35rem;
+    font-size: 1.5rem;
     font-weight: 700;
     color: var(--text-primary);
     letter-spacing: -0.01em;
@@ -134,7 +89,7 @@ body {
 
 .subtitle {
     margin: 0.25rem 0 0 0;
-    font-size: 0.825rem;
+    font-size: 0.85rem;
     color: var(--text-secondary);
 }
 
@@ -170,12 +125,12 @@ body {
 }
 
 .inline-form input:focus {
-    border-color: var(--brand-yellow);
-    box-shadow: 0 0 0 2px var(--brand-yellow-glow);
+    border-color: var(--accent-yellow);
+    box-shadow: 0 0 0 2px var(--accent-yellow-glow);
 }
 
 /* ==========================================================================
-   Buttons
+   Buttons (Vibrant Yellow Accents)
    ========================================================================== */
 
 .btn {
@@ -198,16 +153,16 @@ body {
     cursor: not-allowed;
 }
 
-/* Primary Yellow Button (MindBridge Signature CTA) */
+/* Primary Yellow Button (Add Candidate) */
 .btn-primary {
-    background: var(--brand-yellow);
-    color: var(--brand-dark);
-    box-shadow: 0 2px 10px rgba(245, 183, 0, 0.3);
+    background: var(--accent-yellow);
+    color: var(--dark-text-contrast);
+    box-shadow: 0 2px 8px rgba(245, 183, 0, 0.3);
 }
 
 .btn-primary:hover:not(:disabled) {
-    background: var(--brand-yellow-hover);
-    box-shadow: 0 4px 15px rgba(245, 183, 0, 0.45);
+    background: var(--accent-yellow-hover);
+    box-shadow: 0 4px 14px rgba(245, 183, 0, 0.45);
     transform: translateY(-1px);
 }
 
@@ -223,15 +178,15 @@ body {
 }
 
 .btn-secondary:hover:not(:disabled) {
-    background: #1a2538;
-    border-color: var(--brand-yellow);
-    color: var(--brand-yellow);
+    background: #1c2844;
+    border-color: var(--accent-yellow);
+    color: var(--accent-yellow);
 }
 
-/* Advance Stage Button */
+/* Advance Stage Button (Vibrant Yellow with bold dark text) */
 .btn-advance {
-    background: var(--brand-yellow);
-    color: var(--brand-dark);
+    background: var(--accent-yellow);
+    color: var(--dark-text-contrast);
     font-size: 0.775rem;
     font-weight: 700;
     padding: 0.35rem 0.65rem;
@@ -240,7 +195,7 @@ body {
 }
 
 .btn-advance:hover:not(:disabled) {
-    background: var(--brand-yellow-hover);
+    background: var(--accent-yellow-hover);
     box-shadow: 0 2px 10px rgba(245, 183, 0, 0.4);
 }
 
@@ -304,9 +259,9 @@ body {
 }
 
 .search-input-wrapper input:focus {
-    border-color: var(--brand-yellow);
-    box-shadow: 0 0 0 3px var(--brand-yellow-glow);
-    background: #0f1522;
+    border-color: var(--accent-yellow);
+    box-shadow: 0 0 0 3px var(--accent-yellow-glow);
+    background: #0f162a;
 }
 
 /* Active Search Filters Banner */
@@ -315,7 +270,7 @@ body {
     padding: 0.6rem 0.9rem;
     border-radius: var(--radius-sm);
     font-size: 0.875rem;
-    background: var(--brand-yellow-subtle);
+    background: var(--accent-yellow-subtle);
     border: 1px solid rgba(245, 183, 0, 0.35);
     color: #fef08a;
     display: flex;
@@ -358,7 +313,7 @@ body {
 }
 
 /* ==========================================================================
-   Board Layout & Stage Columns
+   Board Layout & Dark Gray Stage Column Panels
    ========================================================================== */
 
 .board-wrapper {
@@ -373,6 +328,7 @@ body {
     align-items: flex-start;
 }
 
+/* Column Containers */
 .board-column {
     flex: 1;
     min-width: 220px;
@@ -382,16 +338,17 @@ body {
     display: flex;
     flex-direction: column;
     max-height: calc(100vh - 220px);
-    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.25);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
     overflow: hidden;
 }
 
-/* Terminal stage variations */
+/* Hired column container */
 .column-hired {
     background: rgba(16, 185, 129, 0.04);
     border-color: var(--color-success-border);
 }
 
+/* Rejected column container */
 .column-rejected {
     background: rgba(239, 68, 68, 0.04);
     border-color: var(--color-danger-border);
@@ -416,7 +373,7 @@ body {
 
 .count-badge {
     background: rgba(245, 183, 0, 0.15);
-    color: var(--brand-yellow);
+    color: var(--accent-yellow);
     border: 1px solid rgba(245, 183, 0, 0.3);
     font-size: 0.75rem;
     font-weight: 700;
@@ -454,7 +411,7 @@ body {
 }
 
 /* ==========================================================================
-   Candidate Card
+   Candidate Card Panels (Dark Gray Containers)
    ========================================================================== */
 
 .candidate-card {
@@ -493,8 +450,8 @@ body {
 }
 
 .card-title:hover {
-    color: var(--brand-yellow);
-    text-decoration-color: var(--brand-yellow);
+    color: var(--accent-yellow);
+    text-decoration-color: var(--accent-yellow);
 }
 
 .card-email {
@@ -616,7 +573,7 @@ body {
 }
 
 .btn-close:hover {
-    color: var(--brand-yellow);
+    color: var(--accent-yellow);
 }
 
 .modal-body {
@@ -643,12 +600,12 @@ body {
 .status-value {
     font-size: 0.9rem;
     font-weight: 700;
-    color: var(--brand-yellow);
+    color: var(--accent-yellow);
 }
 
 .duration-pill {
     background: rgba(245, 183, 0, 0.15);
-    color: var(--brand-yellow);
+    color: var(--accent-yellow);
     border: 1px solid rgba(245, 183, 0, 0.3);
     font-size: 0.75rem;
     font-weight: 700;
@@ -687,8 +644,8 @@ body {
     width: 10px;
     height: 10px;
     border-radius: 50%;
-    background: var(--brand-yellow);
-    box-shadow: 0 0 8px var(--brand-yellow);
+    background: var(--accent-yellow);
+    box-shadow: 0 0 8px var(--accent-yellow);
 }
 
 .timeline-item.current-item::before {

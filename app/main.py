@@ -65,6 +65,19 @@ def get_board_page(request: Request):
     )
 
 
+@app.get("/candidates/{candidate_id}", summary="Render candidate audit history page")
+def get_candidate_page(candidate_id: str, request: Request, db: Session = Depends(get_db)):
+    try:
+        candidate_data = get_candidate_details(db, candidate_id)
+        return templates.TemplateResponse(
+            request=request,
+            name="candidate_detail.html",
+            context={"candidate": candidate_data},
+        )
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=str(e))
+
+
 # --- API Endpoints (Thin wrappers around pipeline.py and search.py) ---
 
 @app.get("/api/candidates", summary="Get all candidates grouped by stage")

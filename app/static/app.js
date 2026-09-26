@@ -32,7 +32,7 @@ async function loadBoard() {
             listEl.innerHTML = "";
 
             if (candidates.length === 0) {
-                listEl.innerHTML = `<div style="font-size:0.8rem; color:#94a3b8; text-align:center; padding:1.5rem 0;">No candidates</div>`;
+                listEl.innerHTML = `<div class="empty-state">No candidates</div>`;
                 return;
             }
 
@@ -292,7 +292,14 @@ function handleModalBackdropClick(event) {
     }
 }
 
-// --- Live Search (Wired for Step 8) ---
+// Close modal on Escape key
+document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+        closeCandidateModal();
+    }
+});
+
+// --- Live Search ---
 
 let searchDebounceTimer = null;
 
@@ -308,6 +315,7 @@ function handleSearchInput(event) {
     if (!q) {
         feedbackBox.style.display = "none";
         resultsContainer.style.display = "none";
+        loadBoard();
         return;
     }
 
@@ -323,6 +331,7 @@ function handleSearchInput(event) {
                 feedbackBox.className = "search-feedback error-feedback";
                 feedbackBox.textContent = data.explanation || "Invalid search query.";
                 resultsContainer.style.display = "none";
+                filterBoardWithResults([]);
                 return;
             }
 
@@ -335,10 +344,11 @@ function handleSearchInput(event) {
             }
 
             renderSearchResults(data.results || []);
+            filterBoardWithResults(data.results || []);
         } catch (err) {
             console.error("Search error:", err);
         }
-    }, 250);
+    }, 200);
 }
 
 function clearSearch() {
@@ -351,6 +361,9 @@ function clearSearch() {
     if (clearBtn) clearBtn.style.display = "none";
     if (feedbackBox) feedbackBox.style.display = "none";
     if (resultsContainer) resultsContainer.style.display = "none";
+
+    // Restore all candidates on board
+    loadBoard();
 }
 
 function renderSearchResults(results) {
@@ -375,10 +388,32 @@ function renderSearchResults(results) {
                 <strong>${cand.name}</strong> <span style="font-size:0.8rem; color:#64748b;">(${cand.email})</span>
             </div>
             <div style="display:flex; align-items:center; gap:0.5rem;">
-                <span style="font-size:0.8rem; font-weight:600;">${cand.current_stage}</span>
-                <span class="duration-pill">${cand.time_in_current_stage_human}</span>
+                <span style="font-size:0.8rem; font-weight:600; color:#2563eb;">${cand.current_stage}</span>
+                <span class="duration-pill">${cand.time_in_current_stage_human} in stage</span>
             </div>
         `;
         container.appendChild(item);
+    });
+}
+
+function filterBoardWithResults(matchedCandidates) {
+    const matchedIds = new Set(matchedCandidates.map(c => c.id));
+    ALL_STAGES.forEach(stage => {
+        const listEl = document.getElementById(`list-${stage}`);
+        const countEl = document.getElementById(`count-${stage}`);
+        if (!listEl) return;
+
+        let visibleCount = 0;
+        const cards = listEl.querySelectorAll(".candidate-card");
+        cards.forEach(card => {
+            const cid = card.id.replace("candidate-card-", "");
+            if (matchedIds.has(cid)) {
+                card.style.display = "flex";
+                visibleCount++;
+            } else {
+                card.style.display = "none";
+            }
+        });
+        if (countEl) countEl.textContent = visibleCount;
     });
 }

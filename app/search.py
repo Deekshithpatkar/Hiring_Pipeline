@@ -16,6 +16,16 @@ from app.pipeline import (
 
 STAGE_NAME_MAP = {s.lower(): s for s in ALL_STAGES}
 
+STAGE_SYNONYMS = {
+    "selected": "Hired",
+    "hired": "Hired",
+    "rejected": "Rejected",
+    "offered": "Offer",
+    "interviewed": "Interview",
+    "screened": "Screening",
+    "applied": "Applied",
+}
+
 DAYS_OF_WEEK = {
     "monday": 0,
     "tuesday": 1,
@@ -26,15 +36,23 @@ DAYS_OF_WEEK = {
     "sunday": 6,
 }
 
+INTERROGATIVE_WORDS = {
+    "the", "a", "an", "this", "that", "each", "every", "our", "all", "more",
+    "which", "what", "where", "how", "when", "why", "whom", "whose", "any",
+}
+
 STOP_WORDS = {
     "find", "who", "who's", "is", "are", "were", "was", "the", "a", "an",
     "in", "for", "since", "right", "now", "currently", "stage", "stages",
-    "candidate", "candidates", "everyone", "all", "people", "person",
+    "round", "rounds", "phase", "phases", "level", "levels", "status", "pipeline",
+    "process", "candidate", "candidates", "manycandidates", "everyone", "all", "people", "person",
     "except", "excluding", "but", "not", "didn't", "did", "got", "get",
     "reached", "reach", "stuck", "been", "waiting", "moved", "more", "than",
     "over", "to", "at", "show", "me", "list", "has", "have", "had",
     "week", "weeks", "day", "days", "month", "months", "year", "years",
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
+    "which", "what", "where", "how", "many", "left", "remaining", "active", "still",
+    "s", "re", "m", "d", "t", "ll", "ve",
 }
 
 
@@ -42,6 +60,7 @@ STOP_WORDS = {
 class ParsedFilters:
     current_stage: Optional[str] = None
     exclude_stage: Optional[str] = None
+    exclude_terminal: bool = False
     stuck_stage: Optional[str] = None
     stuck_min_seconds: Optional[float] = None
     moved_to_stage: Optional[str] = None
@@ -52,6 +71,29 @@ class ParsedFilters:
     raw_query: str = ""
     error_message: Optional[str] = None
     detected_descriptions: List[str] = field(default_factory=list)
+
+
+def resolve_stage_name(word: str) -> Optional[str]:
+    """
+    Resolves a stage word to its canonical name.
+    Supports exact matching, recruitment synonyms (e.g. 'selected' -> 'Hired'),
+    and typo tolerance (e.g. 'screenig' -> 'Screening').
+    """
+    w = word.strip().lower()
+    if w in STAGE_NAME_MAP:
+        return STAGE_NAME_MAP[w]
+    if w in STAGE_SYNONYMS:
+        return STAGE_SYNONYMS[w]
+    
+    # Fuzzy match with threshold 0.75 for stage typos
+    best_stage = None
+    best_ratio = 0.0
+    for s in ALL_STAGES:
+        ratio = difflib.SequenceMatcher(None, w, s.lower()).ratio()
+        if ratio > best_ratio and ratio >= 0.75:
+            best_ratio = ratio
+            best_stage = s
+    return best_stage
 
 
 def parse_time_duration(phrase: str) -> Optional[float]:
@@ -125,20 +167,33 @@ def parse_query(raw_query: str, as_of: Optional[datetime] = None) -> ParsedFilte
     lower_query = text_clean.lower()
     consumed_spans = []
 
-    # 1. Check for invalid stage mentions like "who's in Onboarding", "in X stage", "stuck in X", "moved to X"
+    # 1. "How many candidates left" / "active candidates" / "remaining in pipeline"
+    active_pattern = (
+        r"(?:how\s+many\s+)?(?:candidates\s+|manycandidates\s+)?"
+        r"(?:left|remaining|active|still\s+(?:active|in\s+process|here))"
+    )
+    m_active = re.search(active_pattern, lower_query)
+    if m_active:
+        filters.exclude_terminal = True
+        filters.detected_descriptions.append("Active candidates remaining in pipeline")
+        consumed_spans.append(m_active.span())
+
+    # 2. Check for invalid stage mentions like "who's in Onboarding", "in X stage", "stuck in X", "moved to X"
+    # Note: question words in INTERROGATIVE_WORDS (e.g. "which", "what") are not stages!
     stage_intent_patterns = [
-        r"(?:who(?:'s|\s+is|\s+are)?\s+)?in\s+([a-zA-Z]+)(?:\s+stage|\s+right\s+now)?",
-        r"(?:(?:has\s+been|been)?\s*stuck|been|waiting)\s+in\s+([a-zA-Z]+)",
-        r"(?:moved|advanced|transitioned)\s+to\s+([a-zA-Z]+)",
+        r"(?:who(?:'s|\s+is|\s+are)?\s+)?(?:in|at)\s+(?:the\s+)?([a-zA-Z]+)(?:\s+(?:stage|round|phase|right\s+now|currently))?",
+        r"(?:(?:has\s+been|been)?\s*stuck|been|waiting)\s+(?:in|at)\s+(?:the\s+)?([a-zA-Z]+)",
+        r"(?:moved|advanced|transitioned)\s+to\s+(?:the\s+)?([a-zA-Z]+)",
         r"reached\s+(?:the\s+)?([a-zA-Z]+)",
         r"(?:except|excluding)\s+([a-zA-Z]+)",
     ]
     for pattern in stage_intent_patterns:
         for match in re.finditer(pattern, lower_query):
             potential_stage = match.group(1).lower()
-            if potential_stage in {"the", "a", "an", "this", "that", "each", "every", "our", "all", "more"}:
+            if potential_stage in INTERROGATIVE_WORDS:
                 continue
-            if potential_stage not in STAGE_NAME_MAP:
+            resolved = resolve_stage_name(potential_stage)
+            if not resolved:
                 valid_list = ", ".join(ORDERED_STAGES + ["Rejected"])
                 stg_display = match.group(1).capitalize()
                 filters.error_message = (
@@ -147,17 +202,27 @@ def parse_query(raw_query: str, as_of: Optional[datetime] = None) -> ParsedFilte
                 )
                 return filters
 
-    # 2. Reached-but-not-current ("reached Offer stage but didn't get hired")
+    # 3. Status queries: "who got rejected", "who got selected", "who was hired"
+    status_pattern = r"(?:who(?:'s|\s+is|\s+are|\s+got|\s+was|\s+were|\s+became)?\s+)?(?:got\s+|was\s+|were\s+|became\s+)([a-zA-Z]+)"
+    for m_st in re.finditer(status_pattern, lower_query):
+        word = m_st.group(1)
+        canonical = resolve_stage_name(word)
+        if canonical:
+            filters.current_stage = canonical
+            filters.detected_descriptions.append(f"Status: {canonical}")
+            consumed_spans.append(m_st.span())
+
+    # 4. Reached-but-not-current ("reached Offer stage but didn't get hired")
     reached_pattern = (
-        r"reached\s+(?:the\s+)?(\w+)(?:\s+stage)?\s+(?:but|and)?\s*"
-        r"(?:didn't|did\s+not|never|without)\s+(?:get\s+)?(\w+)"
+        r"reached\s+(?:the\s+)?([a-zA-Z]+)(?:\s+(?:stage|round|phase))?\s*(?:but|and)?\s*"
+        r"(?:didn't|did\s+not|never|without)\s+(?:get\s+)?([a-zA-Z]+)"
     )
     m_reached = re.search(reached_pattern, lower_query)
     if m_reached:
         stg1 = m_reached.group(1)
         stg2 = m_reached.group(2)
-        canonical1 = STAGE_NAME_MAP.get(stg1)
-        canonical2 = STAGE_NAME_MAP.get(stg2)
+        canonical1 = resolve_stage_name(stg1)
+        canonical2 = resolve_stage_name(stg2)
         if canonical1 and canonical2:
             filters.reached_stage = canonical1
             filters.must_not_be_stage = canonical2
@@ -166,27 +231,27 @@ def parse_query(raw_query: str, as_of: Optional[datetime] = None) -> ParsedFilte
             )
             consumed_spans.append(m_reached.span())
 
-    # 3. Negation filter ("everyone except rejected candidates", "except rejected")
-    except_pattern = r"(?:everyone\s+|all\s+candidates\s+)?(?:except|excluding|not\s+in)\s+(\w+)(?:\s+candidates)?"
+    # 5. Negation filter ("everyone except rejected candidates", "except rejected")
+    except_pattern = r"(?:everyone\s+|all\s+candidates\s+)?(?:except|excluding|not\s+in)\s+([a-zA-Z]+)(?:\s+candidates)?"
     m_except = re.search(except_pattern, lower_query)
     if m_except:
         stg = m_except.group(1)
-        canonical = STAGE_NAME_MAP.get(stg)
+        canonical = resolve_stage_name(stg)
         if canonical:
             filters.exclude_stage = canonical
             filters.detected_descriptions.append(f"Excluding stage: {canonical}")
             consumed_spans.append(m_except.span())
 
-    # 4. Stuck in stage for duration ("Who has been stuck in Screening for more than a week?")
+    # 6. Stuck in stage for duration ("Who has been stuck in Screening for more than a week?")
     stuck_pattern = (
-        r"(?:(?:has\s+been|been)?\s*stuck|been|waiting)\s+in\s+(\w+)\s+(?:for\s+)?(?:more\s+than|over|longer\s+than)\s+([a-zA-Z0-9\s]+?)"
+        r"(?:(?:has\s+been|been)?\s*stuck|been|waiting)\s+(?:in|at)\s+(?:the\s+)?([a-zA-Z]+)(?:\s+(?:stage|round|phase))?\s+(?:for\s+)?(?:more\s+than|over|longer\s+than)\s+([a-zA-Z0-9\s]+?)"
         r"(?:[?.!]|and\s+|who\s+|$)"
     )
     m_stuck = re.search(stuck_pattern, lower_query)
     if m_stuck:
         stg = m_stuck.group(1)
         dur_str = m_stuck.group(2)
-        canonical = STAGE_NAME_MAP.get(stg)
+        canonical = resolve_stage_name(stg)
         sec = parse_time_duration(dur_str)
         if canonical and sec is not None:
             filters.stuck_stage = canonical
@@ -196,15 +261,15 @@ def parse_query(raw_query: str, as_of: Optional[datetime] = None) -> ParsedFilte
             )
             consumed_spans.append(m_stuck.span())
 
-    # 5. Moved to stage since date ("moved to Interview since Monday")
+    # 7. Moved to stage since date ("moved to Interview since Monday")
     moved_pattern = (
-        r"(?:moved|advanced|transitioned)\s+to\s+(\w+)\s+since\s+([a-zA-Z]+)"
+        r"(?:moved|advanced|transitioned)\s+to\s+(?:the\s+)?([a-zA-Z]+)(?:\s+(?:stage|round|phase))?\s+since\s+([a-zA-Z]+)"
     )
     m_moved = re.search(moved_pattern, lower_query)
     if m_moved:
         stg = m_moved.group(1)
         since_str = m_moved.group(2)
-        canonical = STAGE_NAME_MAP.get(stg)
+        canonical = resolve_stage_name(stg)
         since_dt = resolve_since_date(since_str, now)
         if canonical and since_dt:
             filters.moved_to_stage = canonical
@@ -214,29 +279,33 @@ def parse_query(raw_query: str, as_of: Optional[datetime] = None) -> ParsedFilte
             )
             consumed_spans.append(m_moved.span())
 
-    # 6. Current stage filter ("who's in Interview right now", "in Interview")
-    # Only if not already matched as stuck_stage or moved_to_stage
-    in_stage_pattern = r"(?:who(?:'s|\s+is|\s+are)?\s+)?in\s+(\w+)(?:\s+(?:right\s+now|currently|stage))?"
+    # 8. Current stage filter ("who's in Interview right now", "who's in the offer stage", "in screening round")
+    in_stage_pattern = r"(?:who(?:'s|\s+is|\s+are)?\s+)?(?:in|at)\s+(?:the\s+)?([a-zA-Z]+)(?:\s+(?:stage|round|phase|right\s+now|currently))?"
     for m_in in re.finditer(in_stage_pattern, lower_query):
         span = m_in.span()
         overlaps = any(s[0] <= span[0] < s[1] or s[0] < span[1] <= s[1] for s in consumed_spans)
         if not overlaps:
             stg = m_in.group(1)
-            canonical = STAGE_NAME_MAP.get(stg)
+            if stg in INTERROGATIVE_WORDS:
+                continue
+            canonical = resolve_stage_name(stg)
             if canonical and not filters.stuck_stage and not filters.moved_to_stage and not filters.current_stage:
                 filters.current_stage = canonical
                 filters.detected_descriptions.append(f"Current stage: {canonical}")
                 consumed_spans.append(span)
 
-    # 7. Remaining name query extraction
+    # 9. Remaining name query extraction
     char_list = list(text_clean)
     for start, end in consumed_spans:
         for i in range(start, min(end, len(char_list))):
             char_list[i] = " "
     remaining_text = "".join(char_list)
 
+    # Clean out apostrophes like "who's" or "'s"
+    remaining_text = re.sub(r"['’]s\b", " ", remaining_text, flags=re.IGNORECASE)
+
     tokens = re.findall(r"[a-zA-Z0-9]+", remaining_text)
-    name_tokens = [t for t in tokens if t.lower() not in STOP_WORDS]
+    name_tokens = [t for t in tokens if len(t) > 1 and t.lower() not in STOP_WORDS]
     if name_tokens:
         filters.name_query = " ".join(name_tokens)
         filters.detected_descriptions.append(f"Name query: '{filters.name_query}'")
@@ -247,6 +316,8 @@ def parse_query(raw_query: str, as_of: Optional[datetime] = None) -> ParsedFilte
             f"Could not understand '{text_clean}'. "
             "Try searching by candidate name (e.g. 'Priya Sharma'), "
             "current stage (e.g. 'Who\\'s in Interview right now?'), "
+            "status (e.g. 'who got rejected', 'who got selected'), "
+            "pipeline progress (e.g. 'how many candidates left'), "
             "duration (e.g. 'stuck in Screening for more than a week'), "
             "transition date (e.g. 'moved to Interview since Monday'), "
             "or exclusion (e.g. 'Everyone except rejected candidates')."
@@ -333,6 +404,10 @@ def search_candidates(
         current_stage = details["current_stage"]
         history = details["history"]
         time_in_stage = details["time_in_current_stage_seconds"]
+
+        # Filter: Exclude terminal states (for "how many candidates left")
+        if parsed.exclude_terminal and current_stage in ("Hired", "Rejected"):
+            continue
 
         # Filter 1: current_stage
         if parsed.current_stage and current_stage != parsed.current_stage:

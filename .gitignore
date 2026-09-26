@@ -7,8 +7,7 @@ ENV/
 # Environment Variables & Secrets
 .env
 
-# Tests & Verification
-tests/
+
 
 # Python Bytecode and Cache
 __pycache__/

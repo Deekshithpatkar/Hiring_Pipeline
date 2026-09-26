@@ -19,11 +19,18 @@ STAGE_NAME_MAP = {s.lower(): s for s in ALL_STAGES}
 STAGE_SYNONYMS = {
     "selected": "Hired",
     "hired": "Hired",
+    "hiring": "Hired",
     "rejected": "Rejected",
+    "rejecting": "Rejected",
     "offered": "Offer",
+    "offer": "Offer",
     "interviewed": "Interview",
+    "interview": "Interview",
+    "interviewing": "Interview",
     "screened": "Screening",
+    "screening": "Screening",
     "applied": "Applied",
+    "applying": "Applied",
 }
 
 DAYS_OF_WEEK = {
@@ -39,6 +46,7 @@ DAYS_OF_WEEK = {
 INTERROGATIVE_WORDS = {
     "the", "a", "an", "this", "that", "each", "every", "our", "all", "more",
     "which", "what", "where", "how", "when", "why", "whom", "whose", "any",
+    "last", "past", "next", "first", "recent", "total",
 }
 
 STOP_WORDS = {
@@ -50,6 +58,8 @@ STOP_WORDS = {
     "reached", "reach", "stuck", "been", "waiting", "moved", "more", "than",
     "over", "to", "at", "show", "me", "list", "has", "have", "had",
     "week", "weeks", "day", "days", "month", "months", "year", "years",
+    "hour", "hours", "minute", "minutes", "min", "mins", "second", "seconds", "sec", "secs",
+    "ago", "past", "last",
     "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday",
     "which", "what", "where", "how", "many", "left", "remaining", "active", "still",
     "s", "re", "m", "d", "t", "ll", "ve",
@@ -97,44 +107,61 @@ def resolve_stage_name(word: str) -> Optional[str]:
 
 
 def parse_time_duration(phrase: str) -> Optional[float]:
-    """Converts a duration phrase like 'a week', '2 days', '3 hours' into seconds."""
+    """Converts a duration phrase like 'a week', '2 days', '3 hours', '5 minutes' into seconds."""
     phrase = re.sub(r"[^\w\s]", "", phrase.strip().lower())
     
     # Weeks
-    m = re.search(r"(\d+)\s+weeks?", phrase)
+    m = re.search(r"(\d+)\s+weeks?\b", phrase)
     if m:
         return float(m.group(1)) * 7 * 86400
-    if "a week" in phrase or "one week" in phrase or "week" in phrase:
+    if re.search(r"\b(?:a\s+week|one\s+week|week)\b", phrase):
         return 7 * 86400
 
     # Days
-    m = re.search(r"(\d+)\s+days?", phrase)
+    m = re.search(r"(\d+)\s+days?\b", phrase)
     if m:
         return float(m.group(1)) * 86400
-    if "a day" in phrase or "one day" in phrase or "day" in phrase:
+    if re.search(r"\b(?:a\s+day|one\s+day|day)\b", phrase):
         return 86400
 
     # Months
-    m = re.search(r"(\d+)\s+months?", phrase)
+    m = re.search(r"(\d+)\s+months?\b", phrase)
     if m:
         return float(m.group(1)) * 30 * 86400
-    if "a month" in phrase or "one month" in phrase or "month" in phrase:
+    if re.search(r"\b(?:a\s+month|one\s+month|month)\b", phrase):
         return 30 * 86400
 
     # Hours
-    m = re.search(r"(\d+)\s+hours?", phrase)
+    m = re.search(r"(\d+)\s+hours?\b", phrase)
     if m:
         return float(m.group(1)) * 3600
-    if "an hour" in phrase or "one hour" in phrase or "hour" in phrase:
+    if re.search(r"\b(?:an\s+hour|one\s+hour|hour)\b", phrase):
         return 3600
+
+    # Minutes
+    m = re.search(r"(\d+)\s*(?:min(?:ute)?s?|m)\b", phrase)
+    if m:
+        return float(m.group(1)) * 60
+    if re.search(r"\b(?:a\s+minute|one\s+minute|minute|a\s+min)\b", phrase):
+        return 60
+
+    # Seconds
+    m = re.search(r"(\d+)\s*(?:sec(?:ond)?s?|s)\b", phrase)
+    if m:
+        return float(m.group(1))
+    if re.search(r"\b(?:a\s+second|one\s+second)\b", phrase):
+        return 1
 
     return None
 
 
 def resolve_since_date(date_str: str, as_of: datetime) -> Optional[datetime]:
-    """Resolves relative date words like 'monday', 'yesterday' into a timezone-aware UTC datetime."""
-    word = re.sub(r"[^\w]", "", date_str.strip().lower())
+    """Resolves relative date words like 'monday', 'yesterday' or relative durations like '5 minutes' into a timezone-aware UTC datetime."""
+    cleaned = date_str.strip().lower()
+    cleaned = re.sub(r"\bago\b", "", cleaned).strip()
     as_of = _ensure_utc(as_of)
+
+    word = re.sub(r"[^\w]", "", cleaned)
 
     if word == "yesterday":
         target = as_of - timedelta(days=1)
@@ -151,6 +178,11 @@ def resolve_since_date(date_str: str, as_of: datetime) -> Optional[datetime]:
         target = as_of - timedelta(days=days_back)
         return datetime(target.year, target.month, target.day, 0, 0, 0, tzinfo=timezone.utc)
 
+    # Relative duration (e.g. "5 minutes", "2 hours", "1 day")
+    dur_sec = parse_time_duration(cleaned)
+    if dur_sec is not None:
+        return as_of - timedelta(seconds=dur_sec)
+
     return None
 
 
@@ -166,6 +198,20 @@ def parse_query(raw_query: str, as_of: Optional[datetime] = None) -> ParsedFilte
 
     lower_query = text_clean.lower()
     consumed_spans = []
+
+    # 0. Direct stage match for queries like "interview", "interviewing", "screening", "screening candidates", "offer stage"
+    clean_stage_probe = re.sub(
+        r"\b(candidates?|candidate|stage|round|phase|status|pipeline|show|list|all|who|is|are|in|at|the)\b",
+        " ",
+        lower_query,
+    )
+    stage_words = re.findall(r"[a-zA-Z]+", clean_stage_probe)
+    if len(stage_words) == 1:
+        direct_stage = resolve_stage_name(stage_words[0])
+        if direct_stage:
+            filters.current_stage = direct_stage
+            filters.detected_descriptions.append(f"Current stage: {direct_stage}")
+            return filters
 
     # 1. "How many candidates left" / "active candidates" / "remaining in pipeline"
     active_pattern = (
@@ -261,21 +307,22 @@ def parse_query(raw_query: str, as_of: Optional[datetime] = None) -> ParsedFilte
             )
             consumed_spans.append(m_stuck.span())
 
-    # 7. Moved to stage since date ("moved to Interview since Monday")
+    # 7. Moved to stage since date or relative duration ("moved to Interview since Monday", "moved to Interview since 5 minutes")
     moved_pattern = (
-        r"(?:moved|advanced|transitioned)\s+to\s+(?:the\s+)?([a-zA-Z]+)(?:\s+(?:stage|round|phase))?\s+since\s+([a-zA-Z]+)"
+        r"(?:moved|advanced|transitioned)\s+to\s+(?:the\s+)?([a-zA-Z]+)(?:\s+(?:stage|round|phase))?\s+(?:since|in\s+the\s+last|in\s+the\s+past|past)\s+([a-zA-Z0-9\s]+?)"
+        r"(?:[?.!]|and\s+|who\s+|$)"
     )
     m_moved = re.search(moved_pattern, lower_query)
     if m_moved:
         stg = m_moved.group(1)
-        since_str = m_moved.group(2)
+        since_str = m_moved.group(2).strip()
         canonical = resolve_stage_name(stg)
         since_dt = resolve_since_date(since_str, now)
         if canonical and since_dt:
             filters.moved_to_stage = canonical
             filters.moved_since = since_dt
             filters.detected_descriptions.append(
-                f"Moved to {canonical} since {since_str.capitalize()}"
+                f"Moved to {canonical} since {since_str}"
             )
             consumed_spans.append(m_moved.span())
 

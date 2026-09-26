@@ -2,11 +2,137 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Mini Hiring Pipeline</title>
     <link rel="stylesheet" href="/static/style.css">
 </head>
 <body>
-    <h1>Mini Hiring Pipeline</h1>
+    <header class="app-header">
+        <div class="header-main">
+            <h1>Mini Hiring Pipeline</h1>
+            <p class="subtitle">Recruiter Candidate Board & Audit Trail</p>
+        </div>
+
+        <!-- Add Candidate Form -->
+        <section class="add-candidate-section">
+            <form id="add-candidate-form" class="inline-form" onsubmit="handleAddCandidate(event)">
+                <input 
+                    type="text" 
+                    id="new-candidate-name" 
+                    placeholder="Candidate full name" 
+                    required 
+                    autocomplete="off"
+                />
+                <input 
+                    type="email" 
+                    id="new-candidate-email" 
+                    placeholder="email@example.com" 
+                    required 
+                    autocomplete="off"
+                />
+                <button type="submit" id="add-candidate-btn" class="btn btn-primary">Add Candidate</button>
+            </form>
+            <div id="add-candidate-error" class="inline-error" style="display: none;"></div>
+        </section>
+    </header>
+
+    <!-- Search Section (Wired with live search) -->
+    <section class="search-section">
+        <div class="search-input-wrapper">
+            <input 
+                type="text" 
+                id="search-input" 
+                placeholder="Search candidates... (e.g. 'sharam', 'Who\'s in Interview right now?', 'stuck in Screening for more than a week')"
+                autocomplete="off"
+                oninput="handleSearchInput(event)"
+            />
+            <button id="clear-search-btn" class="btn btn-secondary" onclick="clearSearch()" style="display: none;">Clear</button>
+        </div>
+        <div id="search-feedback" class="search-feedback" style="display: none;"></div>
+        <div id="search-results-container" class="search-results-container" style="display: none;"></div>
+    </section>
+
+    <!-- Board View -->
+    <main class="board-wrapper">
+        <div id="board-container" class="board-container">
+            <!-- Columns rendered dynamically via vanilla JS -->
+            <div class="board-column" data-stage="Applied">
+                <div class="column-header">
+                    <h2>Applied</h2>
+                    <span class="count-badge" id="count-Applied">0</span>
+                </div>
+                <div class="card-list" id="list-Applied"></div>
+            </div>
+
+            <div class="board-column" data-stage="Screening">
+                <div class="column-header">
+                    <h2>Screening</h2>
+                    <span class="count-badge" id="count-Screening">0</span>
+                </div>
+                <div class="card-list" id="list-Screening"></div>
+            </div>
+
+            <div class="board-column" data-stage="Interview">
+                <div class="column-header">
+                    <h2>Interview</h2>
+                    <span class="count-badge" id="count-Interview">0</span>
+                </div>
+                <div class="card-list" id="list-Interview"></div>
+            </div>
+
+            <div class="board-column" data-stage="Offer">
+                <div class="column-header">
+                    <h2>Offer</h2>
+                    <span class="count-badge" id="count-Offer">0</span>
+                </div>
+                <div class="card-list" id="list-Offer"></div>
+            </div>
+
+            <div class="board-column column-hired" data-stage="Hired">
+                <div class="column-header">
+                    <h2>Hired</h2>
+                    <span class="count-badge count-badge-hired" id="count-Hired">0</span>
+                </div>
+                <div class="card-list" id="list-Hired"></div>
+            </div>
+
+            <div class="board-column column-rejected" data-stage="Rejected">
+                <div class="column-header">
+                    <h2>Rejected</h2>
+                    <span class="count-badge count-badge-rejected" id="count-Rejected">0</span>
+                </div>
+                <div class="card-list" id="list-Rejected"></div>
+            </div>
+        </div>
+    </main>
+
+    <!-- Candidate Detail View Modal (for Step 8) -->
+    <div id="candidate-modal" class="modal-backdrop" style="display: none;" onclick="handleModalBackdropClick(event)">
+        <div class="modal-content" onclick="event.stopPropagation()">
+            <div class="modal-header">
+                <div>
+                    <h2 id="modal-candidate-name">Candidate Name</h2>
+                    <p id="modal-candidate-email" class="modal-subtitle">email@example.com</p>
+                </div>
+                <button class="btn-close" onclick="closeCandidateModal()">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="modal-status-bar">
+                    <span class="status-label">Current Stage:</span>
+                    <strong id="modal-candidate-stage" class="status-value">-</strong>
+                    <span class="status-label">Duration:</span>
+                    <span id="modal-candidate-duration" class="duration-pill">-</span>
+                </div>
+
+                <div id="modal-error-message" class="inline-error" style="display: none;"></div>
+
+                <h3>Audit Trail & History</h3>
+                <p class="audit-note">Append-only immutable event log.</p>
+                <div id="modal-history-list" class="timeline"></div>
+            </div>
+        </div>
+    </div>
+
     <script src="/static/app.js"></script>
 </body>
 </html>

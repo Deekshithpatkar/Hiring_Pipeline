@@ -144,6 +144,15 @@ def advance_stage(
 
     current_stage = get_current_stage(db, candidate_id)
 
+    # Enforce chronological ordering even if a caller supplies event_time explicitly
+    if event_time is not None:
+        latest_event = get_latest_event(db, candidate_id)
+        if latest_event and _ensure_utc(event_time) <= _ensure_utc(latest_event.timestamp):
+            raise InvalidTransitionError(
+                f"event_time ({event_time}) must be after the candidate's most recent "
+                f"event ({latest_event.timestamp})."
+            )
+
     # Check if current stage is terminal
     if current_stage in TERMINAL_STAGES:
         raise InvalidTransitionError(

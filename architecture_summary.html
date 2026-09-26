@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Mini Hiring Pipeline — Architecture Summary</title>
+    <style>
+        @page {
+            size: A4;
+            margin: 20mm 15mm 20mm 15mm;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            color: #1e293b;
+            line-height: 1.6;
+            margin: 0;
+            padding: 0;
+            background: #ffffff;
+            font-size: 11pt;
+        }
+        h1 {
+            color: #0f172a;
+            font-size: 22pt;
+            margin-bottom: 0.2rem;
+            border-bottom: 2px solid #2563eb;
+            padding-bottom: 0.3rem;
+        }
+        h2 {
+            color: #1e3a8a;
+            font-size: 14pt;
+            margin-top: 1.5rem;
+            margin-bottom: 0.5rem;
+            border-bottom: 1px solid #e2e8f0;
+            padding-bottom: 0.2rem;
+        }
+        h3 {
+            color: #1e293b;
+            font-size: 12pt;
+            margin-top: 1rem;
+            margin-bottom: 0.3rem;
+        }
+        p {
+            margin: 0.4rem 0;
+        }
+        ul, ol {
+            margin: 0.4rem 0 0.8rem 1.2rem;
+            padding: 0;
+        }
+        li {
+            margin-bottom: 0.25rem;
+        }
+        code {
+            font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+            background: #f1f5f9;
+            padding: 0.15rem 0.35rem;
+            border-radius: 3px;
+            font-size: 9.5pt;
+            color: #0f172a;
+        }
+        pre {
+            background: #0f172a;
+            color: #f8fafc;
+            padding: 0.8rem 1rem;
+            border-radius: 6px;
+            font-size: 9pt;
+            overflow-x: auto;
+            line-height: 1.45;
+            margin: 0.6rem 0;
+        }
+        pre code {
+            background: transparent;
+            color: inherit;
+            padding: 0;
+        }
+        .meta-box {
+            background: #f8fafc;
+            border: 1px solid #cbd5e1;
+            border-radius: 6px;
+            padding: 0.8rem 1rem;
+            margin: 0.8rem 0 1.2rem 0;
+        }
+        .meta-box p {
+            margin: 0.15rem 0;
+        }
+        .badge {
+            display: inline-block;
+            background: #dbeafe;
+            color: #1e40af;
+            padding: 0.15rem 0.5rem;
+            border-radius: 4px;
+            font-weight: 600;
+            font-size: 9pt;
+        }
+        .page-break {
+            page-break-before: always;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Mini Hiring Pipeline — Architecture Summary</h1>
+    
+    <div class="meta-box">
+        <p><strong>GitHub Repository:</strong> <a href="https://github.com/Deekshithpatkar/Hiring_Pipeline">https://github.com/Deekshithpatkar/Hiring_Pipeline</a></p>
+        <p><strong>Candidate:</strong> Deekshith Patkar | <strong>Role:</strong> Technical Take-Home Assignment</p>
+        <p><strong>Stack:</strong> Python 3.14, FastAPI, SQLAlchemy ORM, PostgreSQL 18, Jinja2, Vanilla JS / CSS</p>
+    </div>
+
+    <h2>1. System Overview & Core Principles</h2>
+    <p>The Mini Hiring Pipeline is built to manage candidates for a job through a linear stage sequence with three non-negotiable architectural guarantees:</p>
+    <ul>
+        <li><strong>Single Source of Truth:</strong> There is no mutable <code>current_stage</code> column anywhere. A candidate's current stage is always dynamically derived as the <code>to_stage</code> of their latest recorded <code>StageEvent</code>. State drift is impossible by design.</li>
+        <li><strong>Database-Level Immutability:</strong> The audit trail is strictly append-only. A PostgreSQL <code>BEFORE UPDATE OR DELETE</code> trigger raises an exception directly inside the database engine if any modification or deletion is attempted.</li>
+        <li><strong>Deterministic, Explainable Logic:</strong> State machine validation and search query parsing are written in plain, transparent Python without relying on external NLP libraries or non-deterministic LLM calls.</li>
+    </ul>
+
+    <h2>2. Architecture Diagram</h2>
+    <pre><code>                      +---------------------------------------+
+                      |   Browser UI (HTML5 / Vanilla JS)     |
+                      |   Board, Live Search, Audit Modal     |
+                      +-------------------+-------------------+
+                                          | Fetch JSON / HTML
+                                          v
+                      +---------------------------------------+
+                      |       FastAPI Web Layer (main.py)     |
+                      |    Thin endpoints, Jinja2 Shell       |
+                      +---------+-------------------+---------+
+                                |                   |
+               State Machine    v                   v    Natural Search
+        +----------------------------+     +----------------------------+
+        |     pipeline.py            |     |     search.py              |
+        | - Atomic Candidate Create  |     | - Rule-based intent parser |
+        | - Validated Stage Advance  |     | - Relative time filters    |
+        | - Derived Stage & Duration |     | - Typo-tolerant matcher    |
+        +---------------+------------+     +----------------------------+
+                        |
+                        v SQLAlchemy ORM
+        +---------------------------------------------------------------+
+        |                    PostgreSQL Database                        |
+        |  1. candidates (id, name, email, created_at)                  |
+        |  2. stage_events (id, candidate_id, from, to, timestamp)      |
+        |     * Immutable: Enforced by Postgres BEFORE trigger          |
+        |     * Unique: (candidate_id, to_stage) constraint             |
+        +---------------------------------------------------------------+</code></pre>
+
+    <div class="page-break"></div>
+
+    <h2>3. Data Model & Integrity Guarantees</h2>
+    <p>The database schema consists strictly of two tables:</p>
+    <ul>
+        <li><code>candidates</code>: Stores the candidate identity (<code>id: UUID</code>, <code>name: TEXT</code>, <code>email: TEXT</code>, <code>created_at: TIMESTAMPTZ</code>).</li>
+        <li><code>stage_events</code>: The append-only audit trail (<code>id: UUID</code>, <code>candidate_id: UUID FK</code>, <code>from_stage: TEXT NULL</code>, <code>to_stage: TEXT</code>, <code>timestamp: TIMESTAMPTZ</code>).</li>
+    </ul>
+
+    <h3>PostgreSQL Immutability Trigger</h3>
+    <pre><code>CREATE OR REPLACE FUNCTION prevent_stage_events_modification()
+RETURNS TRIGGER AS $$
+BEGIN
+    RAISE EXCEPTION 'stage_events audit log is immutable and cannot be updated or deleted';
+END;
+$$ LANGUAGE plpgsql;
+
+CREATE TRIGGER trg_stage_events_immutable
+BEFORE UPDATE OR DELETE ON stage_events
+FOR EACH ROW
+EXECUTE FUNCTION prevent_stage_events_modification();</code></pre>
+
+    <h3>Preventing Duplicate Stage Events</h3>
+    <p>A table-level constraint <code>uq_candidate_to_stage (candidate_id, to_stage)</code> guarantees at the database level that no candidate can ever re-enter a stage they have previously occupied.</p>
+
+    <h2>4. State Machine Implementation</h2>
+    <p>The pipeline transitions candidates along a strict, forward-only path:</p>
+    <p><strong><code>Applied &rarr; Screening &rarr; Interview &rarr; Offer &rarr; Hired</code></strong></p>
+    <ul>
+        <li><strong>Atomic Creation:</strong> Creating a candidate writes the <code>Candidate</code> row and the initial <code>from_stage: NULL, to_stage: 'Applied'</code> event in one database transaction with automatic rollback on error.</li>
+        <li><strong>No Skipping or Reversals:</strong> Candidates can advance only one stage forward at a time. Backward moves (e.g. <code>Interview &rarr; Screening</code>) or skipped stages (e.g. <code>Applied &rarr; Interview</code>) are rejected with clear, explanatory error strings.</li>
+        <li><strong>Rejection Handling:</strong> <code>Rejected</code> is reachable from any stage before <code>Hired</code>. Both <code>Hired</code> and <code>Rejected</code> are terminal states.</li>
+        <li><strong>Inline Error Feedback:</strong> All validation errors return structured HTTP 400 responses with exact descriptions, enabling immediate inline feedback on candidate cards without confirmation dialogs.</li>
+    </ul>
+
+    <h2>5. Search Engine & Ranking</h2>
+    <p>The search engine uses a rule-based parser in pure Python (no LLM, no external NLP dependencies):</p>
+    <ul>
+        <li><strong>Fuzzy Typo-Tolerant Matching:</strong> Employs <code>difflib.SequenceMatcher</code> with token analysis at a 0.75 threshold (e.g. <code>"sharam" &rarr; "Sharma"</code>). Exact matches rank above fuzzy matches.</li>
+        <li><strong>Relative Time & Transition Filters:</strong> Resolves phrases such as <code>"stuck in Screening for more than a week"</code> (&gt; 7 days) and <code>"moved to Interview since Monday"</code> into UTC timestamp comparisons.</li>
+        <li><strong>Reached-but-not-current:</strong> Identifies queries like <code>"reached Offer but didn't get hired"</code> by verifying historical <code>Offer</code> events while ensuring the current stage is not <code>Hired</code>.</li>
+        <li><strong>Negation:</strong> Parses <code>"everyone except rejected"</code> into an exclusion filter (<code>current_stage != 'Rejected'</code>).</li>
+        <li><strong>Diagnostic Guidance:</strong> Unrecognized queries (e.g. <code>"who's in Onboarding"</code>) return explicit explanations of what was invalid rather than silent empty lists.</li>
+    </ul>
+
+</body>
+</html>

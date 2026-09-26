@@ -266,7 +266,7 @@ async function openCandidateModal(candidateId) {
             item.innerHTML = `
                 <div class="timeline-stage">
                     ${fromText}<strong>${evt.to_stage}</strong>
-                    ${evt.is_current ? '<span class="status-label" style="margin-left:0.5rem; color:#16a34a; font-weight:600;">(Current)</span>' : ''}
+                    ${evt.is_current ? '<span class="status-label" style="margin-left:0.5rem; color:#34d399; font-weight:700;">(Current)</span>' : ''}
                 </div>
                 <div class="timeline-meta">
                     <span>📅 ${dateStr}</span>
@@ -388,7 +388,7 @@ function renderSearchResults(results) {
                 <strong>${cand.name}</strong> <span style="font-size:0.8rem; color:#64748b;">(${cand.email})</span>
             </div>
             <div style="display:flex; align-items:center; gap:0.5rem;">
-                <span style="font-size:0.8rem; font-weight:600; color:#2563eb;">${cand.current_stage}</span>
+                <span style="font-size:0.8rem; font-weight:700; color:#f5b700;">${cand.current_stage}</span>
                 <span class="duration-pill">${cand.time_in_current_stage_human} in stage</span>
             </div>
         `;
